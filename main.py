@@ -47,7 +47,8 @@ def clean_korean_mood(text: str) -> str:
 with open("songs.json", "r", encoding="utf-8") as f:
     all_songs = json.load(f)
 
-corpus = [f"{song['mood']} {song['genre']} {song['title']}" for song in all_songs]
+# mood, title로만 백터화
+corpus = [f"{song['mood']} {song['title']}" for song in all_songs]
 vectorizer = TfidfVectorizer()
 vectorizer.fit(corpus)  # 단어 어휘 사전 학습 (vectorizer 재사용)
 
