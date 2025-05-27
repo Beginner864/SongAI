@@ -62,14 +62,20 @@ def recommend(req: RecommendRequest):
 
     user_song_ids = {song.id for song in req.songs}
 
-    # 🎯 유사도 0.7 이상 + 사용자 보유 곡만 필터링
-    candidates = [
-        all_songs[i]
-        for i, sim in enumerate(similarities)
-        if sim >= 0.7 and all_songs[i]["id"] in user_song_ids
-    ]
+    print(f"\n[INPUT MOOD] \"{req.mood}\" → cleaned → \"{cleaned}\"\n")
+    print("[SIMILARITIES] 사용자 보유 곡 중 유사도 목록:")
+
+    candidates = []
+    for i, sim in enumerate(similarities):
+        song = all_songs[i]
+        if song["id"] in user_song_ids:
+            print(f"  - ID {song['id']:>3} | {sim:.4f} | {song['title']}")
+            if sim >= 0.7:
+                candidates.append(song)
 
     if not candidates:
+        print("유사도 기준(0.7) 이상인 곡이 없음\n")
         return {"error": "추천 가능한 곡이 없습니다."}
 
-    return random.choice(candidates)  # 🎲 랜덤 추천
+    print("유사도 기준 통과 → 랜덤 추천 진행\n")
+    return random.choice(candidates)
