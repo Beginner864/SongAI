@@ -37,8 +37,9 @@ class RecommendRequest(BaseModel):
 # 감정 문자열 정제
 def clean_korean_mood(text: str) -> str:
     text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z\s]", "", text)
-    text = re.sub(r"(.)\1{2,}", r"\1")
+    text = re.sub(r"(.)\1{2,}", r"\1", text)
     return text.strip().lower()
+
 
 # 서버 시작 시 songs.json 로딩
 with open("songs.json", "r", encoding="utf-8") as f:
