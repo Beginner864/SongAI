@@ -78,11 +78,11 @@ def recommend(req: RecommendRequest):
     for i, sim in ranked:
         song = req.user_songs[i]
         print(f"  - ID {song.id:>3} | {sim:.4f} | {song.title}")
-        if sim >= 0.7:
+        if sim >= 0.5:
             candidates.append(song)
 
     if not candidates:
-        print("유사도 기준(0.7) 이상인 곡이 없음\n")
+        print("유사도 기준(0.5) 이상인 곡이 없음\n")
         return {"error": "추천 가능한 곡이 없습니다."}
 
     print("유사도 기준 통과 → 랜덤 추천 진행\n")
