@@ -36,9 +36,12 @@ class RecommendRequest(BaseModel):
 
 # 감정 입력 정제 함수
 def clean_korean_mood(text: str) -> str:
-    text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z\s]", "", text)
-    text = re.sub(r"(.)\1{2,}", r"\1")  # 같은 문자 반복 제거 (예: cooool → cool)
+    if not text:
+        return ""  # 비어 있는 경우는 빈 문자열을 반환
+    text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z\s]", "", text)  # 한글과 영어 외의 문자는 제거
+    text = re.sub(r"(.)\1{2,}", r"\1", text)  # 같은 문자 반복 제거 (예: cooool → cool)
     return text.strip().lower()
+
 
 # 서버 시작 시 songs.json을 이용해 TF-IDF 벡터라이저 학습
 with open("songs.json", "r", encoding="utf-8") as f:
