@@ -1,3 +1,5 @@
 fastapi
 uvicorn
 scikit-learn
+numpy
+nltk
