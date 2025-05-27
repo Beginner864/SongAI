@@ -18,6 +18,10 @@ from nltk.corpus import wordnet
 from nltk import pos_tag
 from nltk.tokenize import TreebankWordTokenizer
 
+# KoNLPy for Korean NLP
+from konlpy.tag import Okt
+okt = Okt()
+
 # 빠른 토크나이저 (punkt 회피)
 tokenizer = TreebankWordTokenizer()
 
@@ -48,7 +52,6 @@ class RecommendRequest(BaseModel):
 
 lemmatizer = WordNetLemmatizer()
 
-# 영어 lemmatization을 위한 POS 매핑 함수
 def get_wordnet_pos(tag):
     if tag.startswith("J"):
         return wordnet.ADJ
@@ -67,14 +70,20 @@ def lemmatize_text(text):
     lemmas = [lemmatizer.lemmatize(word, get_wordnet_pos(tag)) for word, tag in pos_tags]
     return " ".join(lemmas)
 
-# 감정 입력 정제 함수: 영어는 lemmatization 적용
+# 감정 입력 정제 함수: 한글은 형태소 분석, 영어는 lemmatization 적용
 def clean_korean_mood(text: str) -> str:
     if not text:
         return ""
     text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z\s]", "", text)
     text = re.sub(r"(.)\1{2,}", r"\1", text)
     text = text.strip().lower()
-    return lemmatize_text(text)
+
+    # 한국어 정제
+    if re.search(r"[\uAC00-\uD7A3]", text):
+        words = okt.morphs(text, stem=True)
+        return " ".join(words)
+    else:
+        return lemmatize_text(text)
 
 # JSON 데이터 로드 및 벡터화 학습
 with open("songs.json", "r", encoding="utf-8") as f:
@@ -116,5 +125,3 @@ def recommend(req: RecommendRequest):
 
     print("유사도 기준 통과 → 랜덤 추천 진행\n")
     return random.choice(candidates)
-
-
