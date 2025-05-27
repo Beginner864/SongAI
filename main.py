@@ -64,7 +64,7 @@ def recommend(req: RecommendRequest):
     user_input_vector = vectorizer.transform([cleaned])
 
     # 사용자 보유 곡 텍스트 벡터화
-    user_corpus = [f"{song.mood} {song.genre} {song.title}" for song in req.user_songs]
+    user_corpus = [f"{song.mood} {song.title}" for song in req.user_songs]
     user_vectors = vectorizer.transform(user_corpus)
 
     similarities = cosine_similarity(user_input_vector, user_vectors)[0]
