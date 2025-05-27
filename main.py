@@ -15,10 +15,13 @@ from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet
-from nltk import pos_tag, word_tokenize
+from nltk import pos_tag
+from nltk.tokenize import TreebankWordTokenizer
+
+# 빠른 토크나이저 (punkt 회피)
+tokenizer = TreebankWordTokenizer()
 
 # NLTK 리소스 다운로드 (최초 1회 실행 필요)
-nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('averaged_perceptron_tagger')
 
@@ -45,7 +48,7 @@ class RecommendRequest(BaseModel):
 
 lemmatizer = WordNetLemmatizer()
 
-# happines happy 같은거 해결
+# 영어 lemmatization을 위한 POS 매핑 함수
 def get_wordnet_pos(tag):
     if tag.startswith("J"):
         return wordnet.ADJ
@@ -59,11 +62,12 @@ def get_wordnet_pos(tag):
         return wordnet.NOUN
 
 def lemmatize_text(text):
-    words = word_tokenize(text)
+    words = tokenizer.tokenize(text)
     pos_tags = pos_tag(words)
     lemmas = [lemmatizer.lemmatize(word, get_wordnet_pos(tag)) for word, tag in pos_tags]
     return " ".join(lemmas)
 
+# 감정 입력 정제 함수: 영어는 lemmatization 적용
 def clean_korean_mood(text: str) -> str:
     if not text:
         return ""
@@ -76,7 +80,6 @@ def clean_korean_mood(text: str) -> str:
 with open("songs.json", "r", encoding="utf-8") as f:
     all_songs = json.load(f)
 
-# 정제된 corpus 생성
 corpus = [clean_korean_mood(f"{song['mood']} {song['title']}") for song in all_songs]
 vectorizer = TfidfVectorizer()
 vectorizer.fit(corpus)
@@ -113,3 +116,5 @@ def recommend(req: RecommendRequest):
 
     print("유사도 기준 통과 → 랜덤 추천 진행\n")
     return random.choice(candidates)
+
+
