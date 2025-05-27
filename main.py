@@ -11,9 +11,19 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
+# Lemmatization을 위한 NLTK
+import nltk
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet
+from nltk import pos_tag, word_tokenize
+
+# NLTK 리소스 다운로드 (최초 1회 실행 필요)
+nltk.download('punkt')
+nltk.download('wordnet')
+nltk.download('averaged_perceptron_tagger')
+
 app = FastAPI()
 
-# 예외 핸들러: 요청 검증 실패 처리
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
@@ -21,7 +31,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"detail": exc.errors(), "body": exc.body}
     )
 
-# 데이터 모델 정의
 class Song(BaseModel):
     id: int
     title: str
@@ -34,25 +43,44 @@ class RecommendRequest(BaseModel):
     mood: str
     user_songs: List[Song]
 
-# 감정 입력 정제 함수
+lemmatizer = WordNetLemmatizer()
+
+# happines happy 같은거 해결
+def get_wordnet_pos(tag):
+    if tag.startswith("J"):
+        return wordnet.ADJ
+    elif tag.startswith("V"):
+        return wordnet.VERB
+    elif tag.startswith("N"):
+        return wordnet.NOUN
+    elif tag.startswith("R"):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN
+
+def lemmatize_text(text):
+    words = word_tokenize(text)
+    pos_tags = pos_tag(words)
+    lemmas = [lemmatizer.lemmatize(word, get_wordnet_pos(tag)) for word, tag in pos_tags]
+    return " ".join(lemmas)
+
 def clean_korean_mood(text: str) -> str:
     if not text:
-        return ""  # 비어 있는 경우는 빈 문자열을 반환
-    text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z\s]", "", text)  # 한글과 영어 외의 문자는 제거
-    text = re.sub(r"(.)\1{2,}", r"\1", text)  # 같은 문자 반복 제거 (예: cooool → cool)
-    return text.strip().lower()
+        return ""
+    text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z\s]", "", text)
+    text = re.sub(r"(.)\1{2,}", r"\1", text)
+    text = text.strip().lower()
+    return lemmatize_text(text)
 
-
-# 서버 시작 시 songs.json을 이용해 TF-IDF 벡터라이저 학습
+# JSON 데이터 로드 및 벡터화 학습
 with open("songs.json", "r", encoding="utf-8") as f:
     all_songs = json.load(f)
 
-# mood, title로만 백터화
-corpus = [f"{song['mood']} {song['title']}" for song in all_songs]
+# 정제된 corpus 생성
+corpus = [clean_korean_mood(f"{song['mood']} {song['title']}") for song in all_songs]
 vectorizer = TfidfVectorizer()
-vectorizer.fit(corpus)  # 단어 어휘 사전 학습 (vectorizer 재사용)
+vectorizer.fit(corpus)
 
-# 추천 엔드포인트
 @app.post("/recommend")
 def recommend(req: RecommendRequest):
     if not req.user_songs:
@@ -63,23 +91,20 @@ def recommend(req: RecommendRequest):
     cleaned = clean_korean_mood(req.mood)
     user_input_vector = vectorizer.transform([cleaned])
 
-    # 사용자 보유 곡 텍스트 벡터화
-    user_corpus = [f"{song.mood} {song.title}" for song in req.user_songs]
+    user_corpus = [clean_korean_mood(f"{song.mood} {song.title}") for song in req.user_songs]
     user_vectors = vectorizer.transform(user_corpus)
-
     similarities = cosine_similarity(user_input_vector, user_vectors)[0]
 
     print(f"\n[INPUT MOOD] \"{req.mood}\"\n→ cleaned → \"{cleaned}\"\n")
     print("[SIMILARITIES] 사용자 보유 곡 중 유사도 목록 (유사도 내림차순):")
 
-    # 유사도 기준 정렬하여 로그 출력
     ranked = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
-
     candidates = []
+
     for i, sim in ranked:
         song = req.user_songs[i]
         print(f"  - ID {song.id:>3} | {sim:.4f} | {song.title}")
-        if sim >= 0.2:  # 0.5 이상인 곡만 필터링
+        if sim >= 0.2:
             candidates.append(song)
 
     if not candidates:
