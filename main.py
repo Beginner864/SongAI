@@ -20,10 +20,11 @@ from nltk.corpus import wordnet
 from nltk import pos_tag
 from nltk.tokenize import TreebankWordTokenizer
 
-# GPT API
+# OpenAI 최신 API
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# FastAPI 앱 초기화
 app = FastAPI()
 
 @app.exception_handler(RequestValidationError)
@@ -71,7 +72,7 @@ def clean_korean_mood(text: str) -> str:
     text = text.strip().lower()
     return lemmatize_text(text)
 
-# 번역 캐시
+# GPT 번역 캐시
 mood_translation_cache = {}
 
 def is_korean(text: str) -> bool:
@@ -110,7 +111,7 @@ English:"""
         print(f"[GPT ERROR] '{mood}' 번역 실패: {e}")
         return mood  # 실패 시 원본 그대로 사용
 
-# 벡터화 학습
+# 학습용 벡터화
 with open("songs.json", "r", encoding="utf-8") as f:
     all_songs = json.load(f)
 
@@ -132,8 +133,9 @@ def recommend(req: RecommendRequest):
     user_corpus = []
     for song in req.user_songs:
         mood_translated = gpt_translate_to_english(song.mood)
-        cleaned_text = clean_korean_mood(f"{mood_translated} {song.title}")
-        print(f"[SONG] {song.title} | mood: {song.mood} → {mood_translated} → cleaned: {cleaned_text}")
+        mood_lemmatized = lemmatize_text(mood_translated)
+        cleaned_text = clean_korean_mood(f"{mood_lemmatized} {song.title}")
+        print(f"[SONG] {song.title} | mood: {song.mood} → {mood_translated} → lemmatized: {mood_lemmatized} → cleaned: {cleaned_text}")
         user_corpus.append(cleaned_text)
 
     user_vectors = vectorizer.transform(user_corpus)
