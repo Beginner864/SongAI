@@ -20,19 +20,13 @@ from nltk.corpus import wordnet
 from nltk import pos_tag
 from nltk.tokenize import TreebankWordTokenizer
 
-# GPT API 설정
-import openai
+# OpenAI 최신 버전 API
+from openai import OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-#로컬에서 하면
-#from dotenv import load_dotenv
-#load_dotenv()
-
-openai.api_key = os.getenv("OPENAI_API_KEY")  # 환경변수 사용 권장
-
-# FastAPI 앱 초기화
+# FastAPI 초기화
 app = FastAPI()
 
-# 예외 처리 핸들러
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
@@ -40,7 +34,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"detail": exc.errors(), "body": exc.body}
     )
 
-# 데이터 모델
+# 모델 정의
 class Song(BaseModel):
     id: int
     title: str
@@ -53,7 +47,7 @@ class RecommendRequest(BaseModel):
     mood: str
     user_songs: List[Song]
 
-# NLP 도구
+# NLP 전처리
 lemmatizer = WordNetLemmatizer()
 tokenizer = TreebankWordTokenizer()
 
@@ -70,7 +64,6 @@ def lemmatize_text(text):
     lemmas = [lemmatizer.lemmatize(word, get_wordnet_pos(tag)) for word, tag in pos_tags]
     return " ".join(lemmas)
 
-# 정제 함수
 def clean_korean_mood(text: str) -> str:
     if not text:
         return ""
@@ -79,21 +72,29 @@ def clean_korean_mood(text: str) -> str:
     text = text.strip().lower()
     return lemmatize_text(text)
 
-# GPT 기반 한글 → 영어 번역 + 캐시
+# GPT 번역 캐시
 mood_translation_cache = {}
 
-def gpt_translate_to_english(korean_mood: str) -> str:
-    if korean_mood in mood_translation_cache:
-        return mood_translation_cache[korean_mood]
+# 한글 판별 함수
+def is_korean(text: str) -> bool:
+    return bool(re.search(r"[가-힣]", text))
+
+# GPT 번역 함수 (최적화 적용)
+def gpt_translate_to_english(mood: str) -> str:
+    if mood in mood_translation_cache:
+        return mood_translation_cache[mood]
+
+    if not is_korean(mood):
+        return mood.lower()
 
     prompt = f"""Translate the following mood word from Korean to English.
 Return only a single English word that best matches the mood.
 
-Korean: {korean_mood}
+Korean: {mood}
 English:"""
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful translator."},
@@ -102,14 +103,14 @@ English:"""
             temperature=0.3,
             max_tokens=10,
         )
-        english_mood = response["choices"][0]["message"]["content"].strip().lower()
-        mood_translation_cache[korean_mood] = english_mood
+        english_mood = response.choices[0].message.content.strip().lower()
+        mood_translation_cache[mood] = english_mood
         return english_mood
     except Exception as e:
-        print(f"[GPT ERROR] '{korean_mood}' 번역 실패: {e}")
-        return korean_mood  # 실패 시 원문 그대로 사용
+        print(f"[GPT ERROR] '{mood}' 번역 실패: {e}")
+        return mood
 
-# 학습 데이터 로드 및 벡터화
+# 학습용 데이터 벡터화
 with open("songs.json", "r", encoding="utf-8") as f:
     all_songs = json.load(f)
 
@@ -129,7 +130,7 @@ def recommend(req: RecommendRequest):
     cleaned = clean_korean_mood(req.mood)
     user_input_vector = vectorizer.transform([cleaned])
 
-    # 사용자 곡 정제 + 번역
+    # 사용자 보유 곡 정제
     user_corpus = []
     for song in req.user_songs:
         mood_translated = gpt_translate_to_english(song.mood)

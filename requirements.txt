@@ -3,4 +3,4 @@ uvicorn
 scikit-learn
 numpy
 nltk
-openai
+openai>=1.0.0
