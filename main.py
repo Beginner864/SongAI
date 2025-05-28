@@ -115,7 +115,7 @@ English:"""
 with open("songs.json", "r", encoding="utf-8") as f:
     all_songs = json.load(f)
 
-corpus = [clean_korean_mood(f"{song['mood']} {song['title']}") for song in all_songs]
+corpus = [clean_korean_mood(f"{song['mood']} {song['mood']} {song['title']}") for song in all_songs]
 vectorizer = TfidfVectorizer()
 vectorizer.fit(corpus)
 
@@ -134,7 +134,7 @@ def recommend(req: RecommendRequest):
     for song in req.user_songs:
         mood_translated = gpt_translate_to_english(song.mood)
         mood_lemmatized = lemmatize_text(mood_translated)
-        cleaned_text = clean_korean_mood(f"{mood_lemmatized} {song.title}")
+        cleaned_text = clean_korean_mood(f"{mood_lemmatized} {mood_lemmatized} {song.title}")
         print(f"[SONG] {song.title} | mood: {song.mood} → {mood_translated} → lemmatized: {mood_lemmatized} → cleaned: {cleaned_text}")
         user_corpus.append(cleaned_text)
 
