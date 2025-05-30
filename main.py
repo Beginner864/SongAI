@@ -161,4 +161,3 @@ def recommend(req: RecommendRequest):
 
     print("유사도 기준 통과 → 랜덤 추천 실행")
     return random.choice(candidates)
-
