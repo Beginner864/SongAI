@@ -91,8 +91,8 @@ def gpt_translate_to_english(mood: str) -> str:
         print(f"[SKIP] 이미 영어로 판단된 감정: {mood}")
         return mood.lower()
 
-    prompt = f"""Translate the following Korean mood expression to a single English adjective or verb (not a noun) that best expresses the emotion.
-ONLY return one English word, and NOTHING ELSE. Do not include explanations or synonyms.
+    prompt = f"""Translate the following Korean mood expression to English.
+Return only a single English adjective or verb (not a noun) that best expresses the emotion, in one word.
 
 Korean: {mood}
 English:"""
