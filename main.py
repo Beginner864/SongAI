@@ -58,11 +58,15 @@ def get_wordnet_pos(tag):
     elif tag.startswith("R"): return wordnet.ADV
     return wordnet.NOUN
 
-def lemmatize_text(text):
+# 단어 1개일 경우 강제로 동사 처리
+def smart_lemmatize(text: str) -> str:
     words = tokenizer.tokenize(text)
-    pos_tags = pos_tag(words)
-    lemmas = [lemmatizer.lemmatize(word, get_wordnet_pos(tag)) for word, tag in pos_tags]
-    return " ".join(lemmas)
+    if len(words) == 1:
+        return lemmatizer.lemmatize(words[0], wordnet.VERB)
+    else:
+        pos_tags = pos_tag(words)
+        lemmas = [lemmatizer.lemmatize(word, get_wordnet_pos(tag)) for word, tag in pos_tags]
+        return " ".join(lemmas)
 
 def clean_korean_mood(text: str) -> str:
     if not text:
@@ -70,7 +74,7 @@ def clean_korean_mood(text: str) -> str:
     text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z\s]", "", text)
     text = re.sub(r"(.)\1{2,}", r"\1", text)
     text = text.strip().lower()
-    return lemmatize_text(text)
+    return text
 
 # GPT 번역 캐시
 mood_translation_cache = {}
@@ -87,8 +91,8 @@ def gpt_translate_to_english(mood: str) -> str:
         print(f"[SKIP] 이미 영어로 판단된 감정: {mood}")
         return mood.lower()
 
-    prompt = f"""Translate the following Korean mood expression to English.
-Return only a single English adjective or verb (not a noun) that best expresses the emotion, in one word.
+    prompt = f"""Translate the following Korean mood expression to a single English adjective or verb (not a noun) that best expresses the emotion.
+ONLY return one English word, and NOTHING ELSE. Do not include explanations or synonyms.
 
 Korean: {mood}
 English:"""
@@ -103,7 +107,7 @@ English:"""
             temperature=0.3,
             max_tokens=10,
         )
-        english_mood = response.choices[0].message.content.strip().lower()
+        english_mood = response.choices[0].message.content.strip().lower().split()[0]
         print(f"[GPT] 번역 성공: {mood} → {english_mood}")
         mood_translation_cache[mood] = english_mood
         return english_mood
@@ -115,7 +119,7 @@ English:"""
 with open("songs.json", "r", encoding="utf-8") as f:
     all_songs = json.load(f)
 
-corpus = [clean_korean_mood(f"{song['mood']} {song['mood']} {song['title']}") for song in all_songs]
+corpus = [clean_korean_mood(f"{smart_lemmatize(song['mood'])} {smart_lemmatize(song['mood'])} {song['title']}") for song in all_songs]
 vectorizer = TfidfVectorizer()
 vectorizer.fit(corpus)
 
@@ -127,7 +131,7 @@ def recommend(req: RecommendRequest):
         return {"error": "기분 입력이 필요합니다."}
 
     translated = gpt_translate_to_english(req.mood)
-    lemmatized = lemmatize_text(translated)
+    lemmatized = smart_lemmatize(translated)
     cleaned = clean_korean_mood(f"{lemmatized} {lemmatized}")
     print(f"[INPUT] 사용자가 입력한 기분: {req.mood} → translated: {translated} → lemmatized: {lemmatized} → cleaned: {cleaned}")
 
@@ -136,7 +140,7 @@ def recommend(req: RecommendRequest):
     user_corpus = []
     for song in req.user_songs:
         mood_translated = gpt_translate_to_english(song.mood)
-        mood_lemmatized = lemmatize_text(mood_translated)
+        mood_lemmatized = smart_lemmatize(mood_translated)
         cleaned_text = clean_korean_mood(f"{mood_lemmatized} {mood_lemmatized} {song.title}")
         print(f"[SONG] {song.title} | mood: {song.mood} → {mood_translated} → lemmatized: {mood_lemmatized} → cleaned: {cleaned_text}")
         user_corpus.append(cleaned_text)
@@ -160,4 +164,5 @@ def recommend(req: RecommendRequest):
 
     print("유사도 기준 통과 → 랜덤 추천 실행")
     return random.choice(candidates)
+
 
