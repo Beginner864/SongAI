@@ -126,8 +126,11 @@ def recommend(req: RecommendRequest):
     if not req.mood:
         return {"error": "기분 입력이 필요합니다."}
 
-    cleaned = clean_korean_mood(req.mood)
-    print(f"[INPUT] 사용자가 입력한 기분: {req.mood} → cleaned: {cleaned}")
+    translated = gpt_translate_to_english(req.mood)
+    lemmatized = lemmatize_text(translated)
+    cleaned = clean_korean_mood(f"{lemmatized} {lemmatized}")
+    print(f"[INPUT] 사용자가 입력한 기분: {req.mood} → translated: {translated} → lemmatized: {lemmatized} → cleaned: {cleaned}")
+
     user_input_vector = vectorizer.transform([cleaned])
 
     user_corpus = []
