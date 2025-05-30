@@ -59,10 +59,14 @@ def get_wordnet_pos(tag):
     return wordnet.NOUN
 
 def lemmatize_text(text):
-    words = tokenizer.tokenize(text)
-    pos_tags = pos_tag(words)
-    lemmas = [lemmatizer.lemmatize(word, get_wordnet_pos(tag)) for word, tag in pos_tags]
-    return " ".join(lemmas)
+    def clean_korean_mood(text: str) -> str:
+    if not text:
+        return ""
+    text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z\s]", "", text)
+    text = re.sub(r"(.)\1{2,}", r"\1", text)
+    text = text.strip().lower()
+    return lemmatize_as_verb(text)
+
 
 def lemmatize_as_verb(text: str) -> str:
     words = tokenizer.tokenize(text)
@@ -91,8 +95,8 @@ def gpt_translate_to_english(mood: str) -> str:
         print(f"[SKIP] 이미 영어로 판단된 감정: {mood}")
         return mood.lower()
 
-    prompt = f"""Translate the following Korean mood expression to English.
-Return only the base form of a single English verb (e.g., 'excite', 'worry', 'amuse') that best expresses the emotion.
+      prompt = f"""Translate the following Korean mood expression to English.
+Return only a single English adjective or verb (not a noun) that best expresses the emotion, in one word.
 
 Korean: {mood}
 English:"""
